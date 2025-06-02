@@ -1,0 +1,19 @@
+{
+    "name": "gulita",
+    "version": "1.0.0",
+    "description": "Backend for Gulita capstone project",
+    "main": "server.js",
+    "type": "module",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch src/index.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@hapi/hapi": "^21.3.x",
+        "@hapi/joi": "^17.1.x",
+        "bcryptjs": "^3.0.2"
+    }
+}
