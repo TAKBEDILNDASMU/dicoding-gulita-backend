@@ -48,7 +48,7 @@ A minimal API built with Hapi.js for user registration. This project demonstrate
 
 ## API Endpoints
 
-* **POST** `/users/register`
+* **POST** `/api/v1/users/register`
     * Registers a new user.
     * **Payload:**
         ```json
