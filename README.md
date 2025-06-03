@@ -1,7 +1,3 @@
-Okay, here's a minimal README.md for your Hapi.js user registration API project:
-
-Markdown
-
 # Hapi.js User Registration API
 
 A minimal API built with Hapi.js for user registration. This project demonstrates a basic setup using ES Modules, structured directories, and pnpm.
