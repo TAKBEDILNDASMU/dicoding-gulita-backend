@@ -1,14 +1,12 @@
-// src/config/index.js
 'use strict';
 
-// For simplicity, directly accessing process.env.
-// In a larger app, you might use a library like 'dotenv' to load .env files,
-// but since Node.js 20.6.0, you can use `node --env-file=.env your-script.js`
-// For older versions or if you prefer, install dotenv: pnpm add dotenv
-// import dotenv from 'dotenv';
-// dotenv.config(); // Load .env file contents into process.env
+import dotenv from 'dotenv';
+dotenv.config();
 
 const config = {
+  jwt: {
+    secret: '163ba8b12d2d47342e9d56054bb3f4eceb8b7aef0c7cc189f063e0370e7bc064',
+  },
   server: {
     port: parseInt(process.env.PORT, 10) || 3000,
     host: process.env.HOST || 'localhost',
@@ -16,10 +14,13 @@ const config = {
   bcrypt: {
     saltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10,
   },
-  // Add other configurations like database credentials here
-  // database: {
-  //   uri: process.env.DB_URI,
-  // }
+  database: {
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+  },
 };
 
 export default config;

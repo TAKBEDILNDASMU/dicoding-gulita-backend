@@ -2,8 +2,9 @@
 
 import Hapi from '@hapi/hapi';
 import config from './config/index.js';
-import userRoutes from './api/users/userRoutes.js';
+import userRoutes from './app/auth/routes.js';
 import loggingPlugin from './plugins/logging.js'; // Uncomment to use
+import Joi from 'joi';
 
 const init = async () => {
   const server = Hapi.server({
@@ -25,26 +26,13 @@ const init = async () => {
     },
   });
 
+  // Configure Joi as the default validator
+  server.validator(Joi);
+
   // Register plugins (example)
   await server.register(loggingPlugin);
 
   // Register routes
-  server.route({
-    // Simple root route for health check / info
-    method: 'GET',
-    path: '/',
-    handler: (request, h) => {
-      return {
-        message: 'Welcome to the API!',
-        status: 'running',
-        timestamp: new Date().toISOString(),
-      };
-    },
-    options: {
-      tags: ['api', 'health'],
-      description: 'API root/health check',
-    },
-  });
   server.route(userRoutes); // Register all user-related routes
 
   try {
