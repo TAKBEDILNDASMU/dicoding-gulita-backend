@@ -45,26 +45,7 @@ const loginRoute = {
       failAction: validationFailAction,
     },
     response: {
-      status: {
-        200: {
-          description: 'User successfully authenticated',
-        },
-        400: {
-          description: 'Invalid input data or validation error',
-        },
-        401: {
-          description: 'Invalid credentials',
-        },
-        404: {
-          description: 'User not found',
-        },
-        500: {
-          description: 'Internal server error',
-        },
-        503: {
-          description: 'Service temporarily unavailable',
-        },
-      },
+      failAction: 'ignore',
     },
     auth: false, // No authentication required for login
     cors: {
