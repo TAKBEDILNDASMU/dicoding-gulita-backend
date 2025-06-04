@@ -1,0 +1,41 @@
+{
+  "validUser": {
+    "username": "validuser",
+    "email": "valid@example.com",
+    "password": "ValidPassword123!"
+  },
+  "invalidUsers": [
+    {
+      "username": "",
+      "email": "test@example.com",
+      "password": "password123",
+      "expectedError": "Username is required"
+    },
+    {
+      "username": "testuser",
+      "email": "invalid-email",
+      "password": "password123",
+      "expectedError": "Invalid email format"
+    },
+    {
+      "username": "testuser",
+      "email": "test@example.com",
+      "password": "123",
+      "expectedError": "Password too short"
+    }
+  ],
+  "testUsers": [
+    {
+      "username": "user1",
+      "email": "user1@example.com",
+      "password": "Password123!",
+      "role": "user"
+    },
+    {
+      "username": "admin1",
+      "email": "admin1@example.com",
+      "password": "AdminPass123!",
+      "role": "admin"
+    }
+  ]
+}

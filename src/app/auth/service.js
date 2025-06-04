@@ -3,8 +3,8 @@ import jwt from 'jsonwebtoken';
 import config from '../../config/index.js';
 
 class AuthService {
-  constructor(userRepository) {
-    this.userRepository = userRepository;
+  constructor(repository) {
+    this.repository = repository;
   }
 
   /**
@@ -75,7 +75,7 @@ class AuthService {
       }
 
       // Check if user already exists by email
-      const existingUserByEmail = await this.userRepository.findByEmail(email);
+      const existingUserByEmail = await this.repository.findByEmail(email);
       if (existingUserByEmail) {
         const error = new Error('EMAIL_ALREADY_EXISTS');
         error.details = 'User with this email already exists';
@@ -84,7 +84,7 @@ class AuthService {
       }
 
       // Check if user already exists by username
-      const existingUserByUsername = await this.userRepository.findByUsername(username);
+      const existingUserByUsername = await this.repository.findByUsername(username);
       if (existingUserByUsername) {
         const error = new Error('USERNAME_ALREADY_EXISTS');
         error.details = 'User with this username already exists';
@@ -96,7 +96,7 @@ class AuthService {
       const hashedPassword = await hashPassword(password);
 
       // Create the user
-      return await this.userRepository.create({ username, email, hashedPassword });
+      return await this.repository.create({ username, email, hashedPassword });
     } catch (error) {
       // Re-throw known errors
       if (error.message === 'VALIDATION_ERROR' || error.message === 'USER_ALREADY_EXISTS' || error.message === 'DATABASE_CONNECTION_ERROR') {
@@ -105,12 +105,10 @@ class AuthService {
 
       // Log and re-throw database constraint errors
       if (error.code && error.code.startsWith('23')) {
-        console.error('Database constraint error in register:', error);
         throw error;
       }
 
       // Log unexpected errors
-      console.error('Unexpected error in AuthService.register:', error);
       throw new Error('Registration failed due to an unexpected error');
     }
   }
@@ -135,7 +133,7 @@ class AuthService {
       }
 
       // Find user by email (including password hash for verification)
-      const user = await this.userRepository.findByEmail(email);
+      const user = await this.repository.findByEmail(email);
       if (!user) {
         throw new Error('USER_NOT_FOUND');
       }
@@ -174,111 +172,46 @@ class AuthService {
   }
 
   /**
-   * Retrieves user profile data by user ID
-   * @param {string|number} userId - The user ID
-   * @returns {Promise<Object>} User profile data without sensitive information
-   * @throws {Error} User retrieval errors
+   * Handles user logout by invalidating the JWT token
+   * @param {Object} params - Logout parameters
+   * @param {string} params.token - JWT token to invalidate
+   * @returns {Promise<void>} Promise that resolves when logout is complete
+   * @throws {Error} Logout errors
    */
-  async getUserProfile(userId) {
+  async logout(params) {
     try {
+      const { token } = params;
+
       // Validate input parameters
-      if (!userId) {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'User ID is required';
-        throw error;
+      if (!token) {
+        throw new Error('INVALID_TOKEN');
       }
 
-      // Find user by ID
-      const user = await this.userRepository.findById(userId);
-      if (!user) {
-        throw new Error('USER_NOT_FOUND');
-      }
+      // Verify the token is valid before invalidating
+      const decoded = this.verifyToken(token);
 
-      // Remove sensitive information from user object
-      const { password_hash, ...userProfile } = user;
+      // Store the token in a blacklist/revocation list
+      await this.repository.blacklistToken({
+        token,
+        userId: decoded.id,
+        expiresAt: new Date(decoded.exp * 1000),
+      });
 
-      return userProfile;
-    } catch (error) {
-      // Re-throw known errors
-      if (error.message === 'VALIDATION_ERROR' || error.message === 'USER_NOT_FOUND' || error.message === 'DATABASE_CONNECTION_ERROR') {
-        throw error;
-      }
-
-      // Log unexpected errors
-      console.error('Unexpected error in AuthService.getUserProfile:', error);
-      throw new Error('Failed to retrieve user profile due to an unexpected error');
-    }
-  }
-
-  /**
-   * Updates user profile data by user ID
-   * @param {string|number} userId - The user ID
-   * @param {Object} updateData - The data to update
-   * @returns {Promise<Object>} Updated user profile data without sensitive information
-   * @throws {Error} User update errors
-   */
-  async updateUserProfile(userId, updateData) {
-    try {
-      // Validate input parameters
-      if (!userId) {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'User ID is required';
-        throw error;
-      }
-
-      if (!updateData || typeof updateData !== 'object') {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'Update data is required and must be an object';
-        throw error;
-      }
-
-      // Validate that updateData is not empty
-      if (Object.keys(updateData).length === 0) {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'At least one field must be provided for update';
-        throw error;
-      }
-
-      // Remove sensitive fields that shouldn't be updated directly
-      const { password_hash, id, created_at, ...allowedUpdates } = updateData;
-
-      if (Object.keys(allowedUpdates).length === 0) {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'No valid fields provided for update';
-        throw error;
-      }
-
-      // Find user by ID
-      const user = await this.userRepository.findById(userId);
-      if (!user) {
-        throw new Error('USER_NOT_FOUND');
-      }
-
-      // Update user profile
-      const updatedUser = await this.userRepository.update(userId, allowedUpdates);
-
-      if (!updatedUser) {
-        throw new Error('UPDATE_FAILED');
-      }
-
-      // Remove sensitive information from updated user object
-      const { password_hash: _, ...userProfile } = updatedUser;
-
-      return userProfile;
+      // Logout successful - no return value needed
     } catch (error) {
       // Re-throw known errors
       if (
-        error.message === 'VALIDATION_ERROR' ||
-        error.message === 'USER_NOT_FOUND' ||
-        error.message === 'UPDATE_FAILED' ||
+        error.message === 'INVALID_TOKEN' ||
+        error.message === 'TOKEN_EXPIRED' ||
+        error.message === 'TOKEN_ALREADY_INVALIDATED' ||
         error.message === 'DATABASE_CONNECTION_ERROR'
       ) {
         throw error;
       }
 
       // Log unexpected errors
-      console.error('Unexpected error in AuthService.updateUserProfile:', error);
-      throw new Error('Failed to update user profile due to an unexpected error');
+      console.error('Unexpected error in AuthService.logout:', error);
+      throw new Error('Logout failed due to an unexpected error');
     }
   }
 
@@ -330,7 +263,7 @@ class AuthService {
       const decoded = this.verifyToken(token);
 
       // Get fresh user data
-      const user = await this.userRepository.findById(decoded.id);
+      const user = await this.repository.findById(decoded.id);
       if (!user) {
         throw new Error('USER_NOT_FOUND');
       }

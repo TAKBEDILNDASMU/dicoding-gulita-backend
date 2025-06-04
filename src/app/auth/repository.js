@@ -1,7 +1,7 @@
 import { query } from '../../database.js';
 import { validateUUID } from '../../utils/uuidUtils.js';
 
-class UserRepository {
+class AuthRepository {
   /**
    * Creates a new user in the database
    * @param {Object} user - User data object
@@ -177,55 +177,96 @@ class UserRepository {
   }
 
   /**
-   * Updates user information
-   * @param {number} id - The user ID to update
-   * @param {Object} updates - Object containing fields to update
-   * @returns {Promise<Object|null>} Updated user object without password hash or null if not found
+   * Adds a token to the blacklist to prevent its reuse
+   * @param {Object} tokenData - Token blacklist data
+   * @param {string} tokenData.token - The JWT token to blacklist
+   * @param {string} tokenData.userId - The user ID associated with the token
+   * @param {Date} tokenData.expiresAt - When the token expires
+   * @returns {Promise<Object>} Created blacklist entry
    * @throws {Error} Database connection or validation errors
    */
-  async update(id, updates) {
+  async blacklistToken(tokenData) {
     try {
-      const validateId = validateUUID(id);
+      const { token, userId, expiresAt } = tokenData;
 
-      if (!updates || Object.keys(updates).length === 0) {
+      // Validate input parameters
+      if (!token || !userId || !expiresAt) {
         const error = new Error('VALIDATION_ERROR');
-        error.details = 'At least one field to update is required';
+        error.details = 'Token, userId, and expiresAt are required';
         throw error;
       }
 
-      // Build dynamic SQL query based on provided updates
-      const allowedFields = ['username', 'email'];
-      const updateFields = [];
-      const params = [];
-      let paramIndex = 1;
+      // Validate userId format
+      const validatedUserId = validateUUID(userId);
 
-      for (const [key, value] of Object.entries(updates)) {
-        if (allowedFields.includes(key)) {
-          updateFields.push(`${key} = $${paramIndex}`);
-          params.push(value);
-          paramIndex++;
-        }
+      // Check if token is already blacklisted
+      const existingEntry = await this.isTokenBlacklisted(token);
+      if (existingEntry) {
+        throw new Error('TOKEN_ALREADY_INVALIDATED');
       }
-
-      if (updateFields.length === 0) {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'No valid fields to update';
-        throw error;
-      }
-
-      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-      params.push(validateId);
 
       const sql = `
-        UPDATE users
-        SET ${updateFields.join(', ')}
-        WHERE id = $${paramIndex}
-        RETURNING id, username, email, created_at, updated_at;
-      `;
+      INSERT INTO token_blacklist (token, user_id, expires_at)
+      VALUES ($1, $2, $3)
+      RETURNING id, token, user_id, expires_at, created_at;
+    `;
+      const params = [token, validatedUserId, expiresAt];
 
       const result = await query(sql, params);
 
-      return result.rows.length > 0 ? result.rows[0] : null;
+      if (result.rows.length > 0) {
+        return result.rows[0];
+      } else {
+        throw new Error('Failed to blacklist token - no data returned');
+      }
+    } catch (error) {
+      // Handle database connection errors
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        const dbError = new Error('DATABASE_CONNECTION_ERROR');
+        dbError.originalError = error;
+        throw dbError;
+      }
+
+      // Re-throw known errors
+      if (error.message === 'VALIDATION_ERROR' || error.message === 'TOKEN_ALREADY_INVALIDATED') {
+        throw error;
+      }
+
+      // Re-throw database constraint errors
+      if (error.code && error.code.startsWith('23')) {
+        throw error;
+      }
+
+      // Log and re-throw unexpected errors
+      console.error('Unexpected error in AuthRepository.blacklistToken:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Checks if a token is blacklisted
+   * @param {string} token - The JWT token to check
+   * @returns {Promise<boolean>} True if token is blacklisted, false otherwise
+   * @throws {Error} Database connection errors
+   */
+  async isTokenBlacklisted(token) {
+    try {
+      if (!token) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'Token is required';
+        throw error;
+      }
+
+      const sql = `
+      SELECT id, expires_at
+      FROM token_blacklist
+      WHERE token = $1 AND expires_at > NOW();
+    `;
+      const params = [token];
+
+      const result = await query(sql, params);
+
+      return result.rows.length > 0;
     } catch (error) {
       if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
         const dbError = new Error('DATABASE_CONNECTION_ERROR');
@@ -233,18 +274,14 @@ class UserRepository {
         throw dbError;
       }
 
-      if (error.code && error.code.startsWith('23')) {
-        throw error;
-      }
-
       if (error.message === 'VALIDATION_ERROR') {
         throw error;
       }
 
-      console.error('Unexpected error in UserRepository.update:', error);
+      console.error('Unexpected error in AuthRepository.isTokenBlacklisted:', error);
       throw error;
     }
   }
 }
 
-export default UserRepository;
+export default AuthRepository;

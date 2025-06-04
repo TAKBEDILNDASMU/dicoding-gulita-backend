@@ -4,8 +4,7 @@ class AuthHandler {
 
     this.register = this.register.bind(this);
     this.login = this.login.bind(this);
-    this.getProfile = this.getProfile.bind(this);
-    this.updateProfile = this.updateProfile.bind(this);
+    this.logout = this.logout.bind(this);
   }
 
   /**
@@ -157,120 +156,42 @@ class AuthHandler {
   }
 
   /**
-   * Handles get user profile requests
+   * Handles user logout requests
    * @param {Object} request - Hapi request object
    * @param {Object} h - Hapi response toolkit
-   * @returns {Object} HTTP response with user profile data or error
+   * @returns {Object} HTTP response confirming logout or error
    */
-  async getProfile(request, h) {
+  async logout(request, h) {
     try {
-      const userId = request.auth.credentials.id;
-      const user = await this.authService.getUserProfile(userId);
+      // Extract token from request (usually from Authorization header)
+      const token = request.auth.token;
+
+      // Call the auth service to handle logout (token invalidation)
+      await this.authService.logout({ token });
 
       return h
         .response({
           status: 'success',
-          message: 'Profile retrieved successfully',
-          data: {
-            user,
-          },
+          message: 'Logout successful',
         })
         .code(200);
     } catch (error) {
-      if (error.message === 'USER_NOT_FOUND') {
+      if (error.message === 'INVALID_TOKEN') {
         return h
           .response({
             status: 'error',
-            message: 'User not found',
-            error: 'USER_NOT_FOUND',
+            message: 'Invalid or expired token',
+            error: 'INVALID_TOKEN',
           })
-          .code(404);
+          .code(401);
       }
 
-      if (error.message === 'DATABASE_CONNECTION_ERROR') {
+      if (error.message === 'TOKEN_ALREADY_INVALIDATED') {
         return h
           .response({
             status: 'error',
-            message: 'Service temporarily unavailable',
-            error: 'SERVICE_UNAVAILABLE',
-          })
-          .code(503);
-      }
-
-      console.error('Unexpected error in getProfile handler:', error);
-
-      return h
-        .response({
-          status: 'error',
-          message: 'An unexpected error occurred',
-          error: 'INTERNAL_SERVER_ERROR',
-        })
-        .code(500);
-    }
-  }
-
-  /**
-   * Handles update user profile requests
-   * @param {Object} request - Hapi request object
-   * @param {Object} h - Hapi response toolkit
-   * @returns {Object} HTTP response with updated user data or error
-   */
-  async updateProfile(request, h) {
-    try {
-      const userId = request.auth.credentials.id;
-      const updates = request.payload;
-
-      const updatedUser = await this.authService.updateUserProfile(userId, updates);
-
-      return h
-        .response({
-          status: 'success',
-          message: 'Profile updated successfully',
-          data: {
-            user: updatedUser,
-          },
-        })
-        .code(200);
-    } catch (error) {
-      if (error.code === '23505') {
-        // PostgreSQL unique violation
-        if (error.message.includes('USERNAME_ALREADY_EXISTS')) {
-          return h
-            .response({
-              status: 'error',
-              message: 'Username already exists',
-              error: 'DUPLICATE_USERNAME',
-            })
-            .code(409);
-        }
-        if (error.message.includes('EMAIL_ALREADY_EXISTS')) {
-          return h
-            .response({
-              status: 'error',
-              message: 'Email already exists',
-              error: 'DUPLICATE_EMAIL',
-            })
-            .code(409);
-        }
-      }
-
-      if (error.message === 'USER_NOT_FOUND') {
-        return h
-          .response({
-            status: 'error',
-            message: 'User not found',
-            error: 'USER_NOT_FOUND',
-          })
-          .code(404);
-      }
-
-      if (error.message === 'VALIDATION_ERROR') {
-        return h
-          .response({
-            status: 'error',
-            message: 'Invalid input data',
-            error: 'VALIDATION_ERROR',
-            details: error.details,
+            message: 'Token already invalidated',
+            error: 'TOKEN_ALREADY_INVALIDATED',
           })
           .code(400);
       }
@@ -285,7 +206,7 @@ class AuthHandler {
           .code(503);
       }
 
-      console.error('Unexpected error in updateProfile handler:', error);
+      console.error('Unexpected error in logout handler:', error);
 
       return h
         .response({

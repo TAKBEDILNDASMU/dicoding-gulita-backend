@@ -1,7 +1,6 @@
 'use strict';
 import { authHandler } from './diContainer.js';
-import { registerPayloadSchema, loginPayloadSchema, validationFailAction, authorizationHeaderSchema, updateProfileSchema } from './validation.js';
-import Joi from 'joi';
+import { registerPayloadSchema, loginPayloadSchema, validationFailAction } from './validation.js';
 
 /**
  * User registration route
@@ -58,64 +57,33 @@ const loginRoute = {
 };
 
 /**
- * Get user profile route
- * Returns current user's profile information
+ * User logout route
+ * Handles user logout and token invalidation
  */
-const getProfileRoute = {
-  method: 'GET',
-  path: '/api/v1/users/profile',
+const logoutRoute = {
+  method: 'POST',
+  path: '/api/v1/users/logout',
   options: {
-    description: 'Get current user profile',
-    notes: "Returns the authenticated user's profile information",
-    tags: ['api', 'auth', 'users', 'profile'],
-    validate: {
-      headers: authorizationHeaderSchema,
-      failAction: validationFailAction,
-    },
+    description: 'Logout user and invalidate access token',
+    notes: 'Invalidates the current JWT token and logs out the authenticated user',
+    tags: ['api', 'auth', 'users'],
     response: {
       failAction: 'ignore',
     },
-    auth: 'jwt',
+    auth: {
+      strategy: 'jwt', // Requires authentication to logout
+    },
     cors: {
       origin: ['*'],
-      additionalHeaders: ['cache-control', 'x-requested-with', 'authorization'],
+      additionalHeaders: ['cache-control', 'x-requested-with'],
     },
   },
-  handler: authHandler.getProfile,
-};
-
-/**
- * Update user profile route
- * Update user's profile information (username, email)
- */
-const updateProfileRoute = {
-  method: 'PUT',
-  path: '/api/v1/users/profile',
-  options: {
-    description: 'Update user profile',
-    notes: "Updates the authenticated user's profile information",
-    tags: ['api', 'auth', 'users', 'profile'],
-    validate: {
-      headers: authorizationHeaderSchema,
-      payload: updateProfileSchema,
-      failAction: validationFailAction,
-    },
-    response: {
-      failAction: 'ignore',
-    },
-    auth: 'jwt',
-    cors: {
-      origin: ['*'],
-      additionalHeaders: ['cache-control', 'x-requested-with', 'authorization'],
-    },
-  },
-  handler: authHandler.updateProfile,
+  handler: authHandler.logout,
 };
 
 /**
  * Array of all authentication routes
  * Export all routes for registration with Hapi server
  */
-const routes = [registerRoute, loginRoute, getProfileRoute, updateProfileRoute];
-
+const routes = [registerRoute, loginRoute, logoutRoute];
 export default routes;

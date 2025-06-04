@@ -1,84 +1,76 @@
 'use strict';
+import { start, getServerInstance } from './server.js';
+import pool from './database.js';
 
-import Hapi from '@hapi/hapi';
-import config from './config/index.js';
-import userRoutes from './app/auth/routes.js';
-import Joi from 'joi';
-import Jwt from '@hapi/jwt';
+// Graceful shutdown function
+const gracefulShutdown = async () => {
+  console.log('🔄 Starting graceful shutdown...');
 
-const init = async () => {
-  const server = Hapi.server({
-    port: config.server.port,
-    host: config.server.host,
-    routes: {
-      cors: {
-        origin: ['*'], // Configure properly for production
-      },
-      validate: {
-        // Global failAction for validation, can be overridden per route
-        failAction: (request, h, err) => {
-          console.error('Global Validation FailAction:', err.message);
-          // For production, you might not want to expose err.details directly
-          // Consider transforming the error into a standard format.
-          throw err;
-        },
-      },
-    },
-  });
+  const shutdownPromises = [];
 
-  // Configure Joi as the default validator
-  server.validator(Joi);
+  // 1. Stop HTTP server
+  const server = getServerInstance();
+  if (server) {
+    console.log('⏹️  Stopping HTTP server...');
+    shutdownPromises.push(
+      server
+        .stop({ timeout: 10000 })
+        .then(() => {
+          console.log('✅ HTTP server stopped');
+        })
+        .catch((err) => {
+          console.error('❌ Error stopping server:', err);
+        }),
+    );
+  }
 
-  // Register jwt with the server
-  await server.register(Jwt);
+  // 2. Close PostgreSQL pool
+  if (pool) {
+    console.log('🔌 Closing PostgreSQL pool...');
+    shutdownPromises.push(
+      pool
+        .end()
+        .then(() => {
+          console.log('✅ PostgreSQL pool closed');
+        })
+        .catch((err) => {
+          console.error('❌ Error closing PostgreSQL pool:', err);
+        }),
+    );
+  }
 
-  // Define JWT authentication strategy
-  server.auth.strategy('jwt', 'jwt', {
-    keys: config.jwt.secret,
-    verify: {
-      aud: config.jwt.audience,
-      iss: config.jwt.issuer,
-      sub: false,
-      nbf: true,
-      exp: true,
-      maxAgeSec: 14400, // 4 hours
-      timeSkewSec: 15,
-    },
-    validate: (artifacts, request, h) => {
-      const payload = artifacts.decoded.payload;
-      return {
-        isValid: true,
-        credentials: payload,
-      };
-    },
-  });
-
-  // Set the strategy
-  server.auth.default('jwt');
-
-  // Register routes
-  server.route(userRoutes); // Register all user-related routes
-
+  // Wait for all cleanup operations
   try {
-    await server.start();
-    console.log(`🚀 Server running on ${server.info.uri}`);
+    await Promise.allSettled(shutdownPromises);
+    console.log('✅ Graceful shutdown completed');
   } catch (err) {
-    console.error('❌ Error starting server:', err);
-    process.exit(1);
+    console.error('❌ Error during shutdown:', err);
   }
 };
 
 process.on('unhandledRejection', (err) => {
   console.error('🚨 Unhandled Rejection:', err);
-  // Graceful shutdown logic could go here
-  process.exit(1);
+  gracefulShutdown().finally(() => process.exit(1));
 });
 
 process.on('SIGINT', async () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  // Add any cleanup tasks here (e.g., close database connections)
-  // await server.stop({ timeout: 10000 }); // If you need to wait for server.stop()
+  console.log('🛑 SIGINT received. Shutting down gracefully...');
+  await gracefulShutdown();
   process.exit(0);
 });
 
-init();
+process.on('SIGTERM', async () => {
+  console.log('🛑 SIGTERM received. Shutting down gracefully...');
+  await gracefulShutdown();
+  process.exit(0);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', async (err) => {
+  console.error('💥 Uncaught Exception:', err);
+  await gracefulShutdown();
+  process.exit(1);
+});
+
+// Start the server
+start();
