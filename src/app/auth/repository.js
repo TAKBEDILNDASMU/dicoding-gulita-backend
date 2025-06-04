@@ -1,4 +1,5 @@
 import { query } from '../../database.js';
+import { validateUUID } from '../../utils/uuidUtils.js';
 
 class UserRepository {
   /**
@@ -149,21 +150,15 @@ class UserRepository {
    */
   async findById(id) {
     try {
-      if (!id || isNaN(id)) {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'Valid user ID is required';
-        throw error;
-      }
+      const validateId = validateUUID(id);
 
       const sql = `
         SELECT id, username, email, created_at, updated_at
         FROM users
         WHERE id = $1;
       `;
-      const params = [id];
-
+      const params = [validateId];
       const result = await query(sql, params);
-
       return result.rows.length > 0 ? result.rows[0] : null;
     } catch (error) {
       if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
@@ -190,11 +185,7 @@ class UserRepository {
    */
   async update(id, updates) {
     try {
-      if (!id || isNaN(id)) {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'Valid user ID is required';
-        throw error;
-      }
+      const validateId = validateUUID(id);
 
       if (!updates || Object.keys(updates).length === 0) {
         const error = new Error('VALIDATION_ERROR');
@@ -223,7 +214,7 @@ class UserRepository {
       }
 
       updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-      params.push(id);
+      params.push(validateId);
 
       const sql = `
         UPDATE users

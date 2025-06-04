@@ -36,7 +36,8 @@ class AuthService {
 
       const options = {
         expiresIn: config.jwt?.expiresIn || '24h',
-        issuer: config.jwt?.issuer || 'your-app-name',
+        issuer: config.jwt.issuer,
+        audience: config.jwt.audience,
       };
 
       return jwt.sign(payload, secret, options);
@@ -169,6 +170,115 @@ class AuthService {
       // Log unexpected errors
       console.error('Unexpected error in AuthService.login:', error);
       throw new Error('Login failed due to an unexpected error');
+    }
+  }
+
+  /**
+   * Retrieves user profile data by user ID
+   * @param {string|number} userId - The user ID
+   * @returns {Promise<Object>} User profile data without sensitive information
+   * @throws {Error} User retrieval errors
+   */
+  async getUserProfile(userId) {
+    try {
+      // Validate input parameters
+      if (!userId) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'User ID is required';
+        throw error;
+      }
+
+      // Find user by ID
+      const user = await this.userRepository.findById(userId);
+      if (!user) {
+        throw new Error('USER_NOT_FOUND');
+      }
+
+      // Remove sensitive information from user object
+      const { password_hash, ...userProfile } = user;
+
+      return userProfile;
+    } catch (error) {
+      // Re-throw known errors
+      if (error.message === 'VALIDATION_ERROR' || error.message === 'USER_NOT_FOUND' || error.message === 'DATABASE_CONNECTION_ERROR') {
+        throw error;
+      }
+
+      // Log unexpected errors
+      console.error('Unexpected error in AuthService.getUserProfile:', error);
+      throw new Error('Failed to retrieve user profile due to an unexpected error');
+    }
+  }
+
+  /**
+   * Updates user profile data by user ID
+   * @param {string|number} userId - The user ID
+   * @param {Object} updateData - The data to update
+   * @returns {Promise<Object>} Updated user profile data without sensitive information
+   * @throws {Error} User update errors
+   */
+  async updateUserProfile(userId, updateData) {
+    try {
+      // Validate input parameters
+      if (!userId) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'User ID is required';
+        throw error;
+      }
+
+      if (!updateData || typeof updateData !== 'object') {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'Update data is required and must be an object';
+        throw error;
+      }
+
+      // Validate that updateData is not empty
+      if (Object.keys(updateData).length === 0) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'At least one field must be provided for update';
+        throw error;
+      }
+
+      // Remove sensitive fields that shouldn't be updated directly
+      const { password_hash, id, created_at, ...allowedUpdates } = updateData;
+
+      if (Object.keys(allowedUpdates).length === 0) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'No valid fields provided for update';
+        throw error;
+      }
+
+      // Find user by ID
+      const user = await this.userRepository.findById(userId);
+      if (!user) {
+        throw new Error('USER_NOT_FOUND');
+      }
+
+      // Update user profile
+      const updatedUser = await this.userRepository.update(userId, allowedUpdates);
+
+      if (!updatedUser) {
+        throw new Error('UPDATE_FAILED');
+      }
+
+      // Remove sensitive information from updated user object
+      const { password_hash: _, ...userProfile } = updatedUser;
+
+      return userProfile;
+    } catch (error) {
+      // Re-throw known errors
+      if (
+        error.message === 'VALIDATION_ERROR' ||
+        error.message === 'USER_NOT_FOUND' ||
+        error.message === 'UPDATE_FAILED' ||
+        error.message === 'DATABASE_CONNECTION_ERROR'
+      ) {
+        throw error;
+      }
+
+      // Log unexpected errors
+      console.error('Unexpected error in AuthService.updateUserProfile:', error);
+      throw new Error('Failed to update user profile due to an unexpected error');
     }
   }
 

@@ -1,6 +1,7 @@
 'use strict';
 import { authHandler } from './diContainer.js';
-import { registerPayloadSchema, loginPayloadSchema, validationFailAction } from './validation.js';
+import { registerPayloadSchema, loginPayloadSchema, validationFailAction, authorizationHeaderSchema, updateProfileSchema } from './validation.js';
+import Joi from 'joi';
 
 /**
  * User registration route
@@ -57,9 +58,64 @@ const loginRoute = {
 };
 
 /**
+ * Get user profile route
+ * Returns current user's profile information
+ */
+const getProfileRoute = {
+  method: 'GET',
+  path: '/api/v1/users/profile',
+  options: {
+    description: 'Get current user profile',
+    notes: "Returns the authenticated user's profile information",
+    tags: ['api', 'auth', 'users', 'profile'],
+    validate: {
+      headers: authorizationHeaderSchema,
+      failAction: validationFailAction,
+    },
+    response: {
+      failAction: 'ignore',
+    },
+    auth: 'jwt',
+    cors: {
+      origin: ['*'],
+      additionalHeaders: ['cache-control', 'x-requested-with', 'authorization'],
+    },
+  },
+  handler: authHandler.getProfile,
+};
+
+/**
+ * Update user profile route
+ * Update user's profile information (username, email)
+ */
+const updateProfileRoute = {
+  method: 'PUT',
+  path: '/api/v1/users/profile',
+  options: {
+    description: 'Update user profile',
+    notes: "Updates the authenticated user's profile information",
+    tags: ['api', 'auth', 'users', 'profile'],
+    validate: {
+      headers: authorizationHeaderSchema,
+      payload: updateProfileSchema,
+      failAction: validationFailAction,
+    },
+    response: {
+      failAction: 'ignore',
+    },
+    auth: 'jwt',
+    cors: {
+      origin: ['*'],
+      additionalHeaders: ['cache-control', 'x-requested-with', 'authorization'],
+    },
+  },
+  handler: authHandler.updateProfile,
+};
+
+/**
  * Array of all authentication routes
  * Export all routes for registration with Hapi server
  */
-const routes = [registerRoute, loginRoute];
+const routes = [registerRoute, loginRoute, getProfileRoute, updateProfileRoute];
 
 export default routes;

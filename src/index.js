@@ -3,8 +3,8 @@
 import Hapi from '@hapi/hapi';
 import config from './config/index.js';
 import userRoutes from './app/auth/routes.js';
-import loggingPlugin from './plugins/logging.js'; // Uncomment to use
 import Joi from 'joi';
+import Jwt from '@hapi/jwt';
 
 const init = async () => {
   const server = Hapi.server({
@@ -29,8 +29,32 @@ const init = async () => {
   // Configure Joi as the default validator
   server.validator(Joi);
 
-  // Register plugins (example)
-  await server.register(loggingPlugin);
+  // Register jwt with the server
+  await server.register(Jwt);
+
+  // Define JWT authentication strategy
+  server.auth.strategy('jwt', 'jwt', {
+    keys: config.jwt.secret,
+    verify: {
+      aud: config.jwt.audience,
+      iss: config.jwt.issuer,
+      sub: false,
+      nbf: true,
+      exp: true,
+      maxAgeSec: 14400, // 4 hours
+      timeSkewSec: 15,
+    },
+    validate: (artifacts, request, h) => {
+      const payload = artifacts.decoded.payload;
+      return {
+        isValid: true,
+        credentials: payload,
+      };
+    },
+  });
+
+  // Set the strategy
+  server.auth.default('jwt');
 
   // Register routes
   server.route(userRoutes); // Register all user-related routes
