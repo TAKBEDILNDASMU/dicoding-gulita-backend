@@ -8,6 +8,7 @@ const config = {
     secret: '163ba8b12d2d47342e9d56054bb3f4eceb8b7aef0c7cc189f063e0370e7bc064',
     issuer: 'gulita',
     audience: 'urn:audience:test',
+    accessTokenExpiresIn: '15m',
   },
   server: {
     port: parseInt(process.env.PORT, 10) || 3000,

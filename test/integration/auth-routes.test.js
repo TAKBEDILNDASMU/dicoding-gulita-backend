@@ -130,4 +130,117 @@ describe('Auth Routes', () => {
       expect(res.statusCode).to.equal(404);
     });
   });
+
+  describe('POST /api/v1/users/logout', () => {
+    it('should logout successfully with valid token', async () => {
+      // First register a user
+      await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/register',
+        payload: {
+          username: 'testUser3',
+          email: 'test3@example.com',
+          password: 'password123',
+        },
+      });
+
+      // Then login to get a token
+      const loginRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/login',
+        payload: {
+          email: 'test3@example.com',
+          password: 'password123',
+        },
+      });
+
+      const { accessToken, refreshToken } = loginRes.result.data.token;
+
+      // Now logout with the token
+      const logoutRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/logout',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          refreshToken: refreshToken,
+        },
+      });
+
+      expect(logoutRes.statusCode).to.equal(200);
+      expect(logoutRes.result.message).to.exist();
+    });
+
+    it('should reject logout without authentication token', async () => {
+      const res = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/logout',
+      });
+
+      expect(res.statusCode).to.equal(401);
+    });
+
+    it('should reject logout with invalid token', async () => {
+      const res = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/logout',
+        headers: {
+          authorization: 'Bearer invalid-token-here',
+        },
+      });
+
+      expect(res.statusCode).to.equal(401);
+    });
+
+    it('should reject logout with malformed authorization header', async () => {
+      const res = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/logout',
+        headers: {
+          authorization: 'InvalidFormat token-here',
+        },
+      });
+
+      expect(res.statusCode).to.equal(401);
+    });
+
+    it('should reject logout with invalid refresh token', async () => {
+      // Register and login first
+      await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/register',
+        payload: {
+          username: 'testUser5',
+          email: 'test5@example.com',
+          password: 'password123',
+        },
+      });
+
+      const loginRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/login',
+        payload: {
+          email: 'test5@example.com',
+          password: 'password123',
+        },
+      });
+
+      const { accessToken } = loginRes.result.data.token;
+
+      // Try logout with invalid refresh token
+      const logoutRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/logout',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          refreshToken: 'invalid-refresh-token-here',
+        },
+      });
+
+      expect(logoutRes.statusCode).to.equal(401);
+    });
+  });
 });

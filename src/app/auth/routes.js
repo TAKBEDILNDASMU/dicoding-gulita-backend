@@ -1,6 +1,6 @@
 'use strict';
 import { authHandler } from './diContainer.js';
-import { registerPayloadSchema, loginPayloadSchema, validationFailAction } from './validation.js';
+import { registerPayloadSchema, loginPayloadSchema, validationFailAction, logoutPayloadSchema } from './validation.js';
 
 /**
  * User registration route
@@ -67,11 +67,15 @@ const logoutRoute = {
     description: 'Logout user and invalidate access token',
     notes: 'Invalidates the current JWT token and logs out the authenticated user',
     tags: ['api', 'auth', 'users'],
+    validate: {
+      payload: logoutPayloadSchema,
+      failAction: validationFailAction,
+    },
     response: {
       failAction: 'ignore',
     },
     auth: {
-      strategy: 'jwt', // Requires authentication to logout
+      strategy: 'jwt',
     },
     cors: {
       origin: ['*'],

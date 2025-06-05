@@ -74,6 +74,23 @@ export const loginPayloadSchema = Joi.object({
 });
 
 /**
+ * Validation schema for user logout payload
+ * Validates refresh token for logout
+ */
+export const logoutPayloadSchema = Joi.object({
+  refreshToken: Joi.string().min(1).max(512).required().messages({
+    'string.base': '"refreshToken" must be a string',
+    'string.empty': '"refreshToken" cannot be empty',
+    'string.min': '"refreshToken" is required',
+    'string.max': '"refreshToken" must not exceed {#limit} characters',
+    'any.required': '"refreshToken" is required',
+  }),
+}).options({
+  abortEarly: false,
+  stripUnknown: true,
+});
+
+/**
  * Custom validation function for handling Joi validation errors
  * Formats validation errors into a consistent response structure
  * @param {Object} request - Hapi request object

@@ -1,6 +1,7 @@
 import { comparePassword, hashPassword } from '../../utils/passwordUtils.js';
 import jwt from 'jsonwebtoken';
 import config from '../../config/index.js';
+import crypto from 'node:crypto';
 
 class AuthService {
   constructor(repository) {
@@ -8,16 +9,12 @@ class AuthService {
   }
 
   /**
-   * Generates a JWT token for authenticated user
+   * Generates a JWT access token for authenticated user (short-lived)
    * @private
    * @param {Object} user - User object
-   * @param {number} user.id - User ID
-   * @param {string} user.email - User email
-   * @param {string} user.username - Username
-   * @returns {string} JWT token
-   * @throws {Error} Token generation errors
+   * @returns {string} JWT access token
    */
-  #generateToken(user) {
+  #generateAccessToken(user) {
     try {
       if (!user || !user.id || !user.email) {
         throw new Error('User object with id and email is required for token generation');
@@ -27,6 +24,7 @@ class AuthService {
         id: user.id,
         email: user.email,
         username: user.username,
+        type: 'access',
       };
 
       const secret = config.jwt?.secret;
@@ -35,16 +33,25 @@ class AuthService {
       }
 
       const options = {
-        expiresIn: config.jwt?.expiresIn || '24h',
+        expiresIn: config.jwt.accessTokenExpiresIn,
         issuer: config.jwt.issuer,
         audience: config.jwt.audience,
       };
 
       return jwt.sign(payload, secret, options);
     } catch (error) {
-      console.error('Error generating JWT token:', error);
-      throw new Error('Failed to generate authentication token');
+      console.error('Error generating access token:', error);
+      throw new Error('Failed to generate access token');
     }
+  }
+
+  /**
+   * Generates a secure refresh token (random string)
+   * @private
+   * @returns {string} Refresh token
+   */
+  #generateRefreshToken() {
+    return crypto.randomBytes(64).toString('hex');
   }
 
   /**
@@ -147,12 +154,22 @@ class AuthService {
       // Remove password hash from user object
       const { password_hash, ...userWithoutPassword } = user;
 
-      // Generate JWT token
-      const token = this.#generateToken(userWithoutPassword);
+      // Generate tokens
+      const accessToken = this.#generateAccessToken(userWithoutPassword);
+      const refreshToken = this.#generateRefreshToken();
+
+      // Store refresh token in database
+      await this.repository.storeRefreshToken({
+        userId: user.id,
+        token: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      });
 
       return {
         user: userWithoutPassword,
-        token,
+        accessToken,
+        refreshToken,
+        expiresIn: 15 * 60, // 15 minutes in seconds
       };
     } catch (error) {
       // Re-throw known errors
@@ -180,38 +197,50 @@ class AuthService {
    */
   async logout(params) {
     try {
-      const { token } = params;
+      const { refreshToken } = params;
 
-      // Validate input parameters
-      if (!token) {
-        throw new Error('INVALID_TOKEN');
+      if (!refreshToken) {
+        throw new Error('INVALID_REFRESH_TOKEN');
       }
 
-      // Verify the token is valid before invalidating
-      const decoded = this.verifyToken(token);
+      // Delete the refresh token from database
+      const deleted = await this.repository.deleteRefreshToken(refreshToken);
+      if (!deleted) {
+        throw new Error('INVALID_REFRESH_TOKEN');
+      }
 
-      // Store the token in a blacklist/revocation list
-      await this.repository.blacklistToken({
-        token,
-        userId: decoded.id,
-        expiresAt: new Date(decoded.exp * 1000),
-      });
-
-      // Logout successful - no return value needed
+      // Access token will expire naturally (15 minutes max)
     } catch (error) {
-      // Re-throw known errors
-      if (
-        error.message === 'INVALID_TOKEN' ||
-        error.message === 'TOKEN_EXPIRED' ||
-        error.message === 'TOKEN_ALREADY_INVALIDATED' ||
-        error.message === 'DATABASE_CONNECTION_ERROR'
-      ) {
+      if (error.message === 'INVALID_REFRESH_TOKEN' || error.message === 'DATABASE_CONNECTION_ERROR') {
         throw error;
       }
 
-      // Log unexpected errors
       console.error('Unexpected error in AuthService.logout:', error);
       throw new Error('Logout failed due to an unexpected error');
+    }
+  }
+  /**
+   * Logs out from all devices by deleting all refresh tokens for user
+   * @param {Object} params - Logout parameters
+   * @param {string} params.userId - User ID
+   * @returns {Promise<void>}
+   */
+  async logoutAllDevices(params) {
+    try {
+      const { userId } = params;
+
+      if (!userId) {
+        throw new Error('VALIDATION_ERROR');
+      }
+
+      await this.repository.deleteAllRefreshTokensForUser(userId);
+    } catch (error) {
+      if (error.message === 'VALIDATION_ERROR' || error.message === 'DATABASE_CONNECTION_ERROR') {
+        throw error;
+      }
+
+      console.error('Unexpected error in AuthService.logoutAllDevices:', error);
+      throw new Error('Logout all devices failed');
     }
   }
 
@@ -268,8 +297,22 @@ class AuthService {
         throw new Error('USER_NOT_FOUND');
       }
 
-      // Generate new token
-      return this.#generateToken(user);
+      // Generate new tokens
+      const newAccessToken = this.#generateAccessToken(user);
+      const newRefreshToken = this.#generateRefreshToken();
+
+      // Replace old refresh token with new one (rotation)
+      await this.repository.replaceRefreshToken(refreshToken, {
+        userId: user.id,
+        token: newRefreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      });
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        expiresIn: 15 * 60, // 15 minutes in seconds
+      };
     } catch (error) {
       // Re-throw known errors
       if (

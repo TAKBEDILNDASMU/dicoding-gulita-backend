@@ -177,96 +177,39 @@ class AuthRepository {
   }
 
   /**
-   * Adds a token to the blacklist to prevent its reuse
-   * @param {Object} tokenData - Token blacklist data
-   * @param {string} tokenData.token - The JWT token to blacklist
-   * @param {string} tokenData.userId - The user ID associated with the token
-   * @param {Date} tokenData.expiresAt - When the token expires
-   * @returns {Promise<Object>} Created blacklist entry
-   * @throws {Error} Database connection or validation errors
+   * Stores a refresh token in the database
+   * @param {Object} tokenData - Token data
+   * @param {string} tokenData.userId - User ID
+   * @param {string} tokenData.token - Refresh token
+   * @param {Date} tokenData.expiresAt - Expiration date
+   * @returns {Promise<Object>} Created token record
    */
-  async blacklistToken(tokenData) {
+  async storeRefreshToken(tokenData) {
     try {
-      const { token, userId, expiresAt } = tokenData;
+      const { userId, token, expiresAt } = tokenData;
 
-      // Validate input parameters
-      if (!token || !userId || !expiresAt) {
+      if (!userId || !token || !expiresAt) {
         const error = new Error('VALIDATION_ERROR');
-        error.details = 'Token, userId, and expiresAt are required';
+        error.details = 'UserId, token, and expiresAt are required';
         throw error;
       }
 
-      // Validate userId format
       const validatedUserId = validateUUID(userId);
 
-      // Check if token is already blacklisted
-      const existingEntry = await this.isTokenBlacklisted(token);
-      if (existingEntry) {
-        throw new Error('TOKEN_ALREADY_INVALIDATED');
-      }
-
       const sql = `
-      INSERT INTO token_blacklist (token, user_id, expires_at)
+      INSERT INTO refresh_tokens (user_id, token, expires_at)
       VALUES ($1, $2, $3)
-      RETURNING id, token, user_id, expires_at, created_at;
+      RETURNING id, user_id, token, expires_at, created_at;
     `;
-      const params = [token, validatedUserId, expiresAt];
+      const params = [validatedUserId, token, expiresAt];
 
       const result = await query(sql, params);
 
       if (result.rows.length > 0) {
         return result.rows[0];
       } else {
-        throw new Error('Failed to blacklist token - no data returned');
+        throw new Error('Failed to store refresh token');
       }
-    } catch (error) {
-      // Handle database connection errors
-      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
-        const dbError = new Error('DATABASE_CONNECTION_ERROR');
-        dbError.originalError = error;
-        throw dbError;
-      }
-
-      // Re-throw known errors
-      if (error.message === 'VALIDATION_ERROR' || error.message === 'TOKEN_ALREADY_INVALIDATED') {
-        throw error;
-      }
-
-      // Re-throw database constraint errors
-      if (error.code && error.code.startsWith('23')) {
-        throw error;
-      }
-
-      // Log and re-throw unexpected errors
-      console.error('Unexpected error in AuthRepository.blacklistToken:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Checks if a token is blacklisted
-   * @param {string} token - The JWT token to check
-   * @returns {Promise<boolean>} True if token is blacklisted, false otherwise
-   * @throws {Error} Database connection errors
-   */
-  async isTokenBlacklisted(token) {
-    try {
-      if (!token) {
-        const error = new Error('VALIDATION_ERROR');
-        error.details = 'Token is required';
-        throw error;
-      }
-
-      const sql = `
-      SELECT id, expires_at
-      FROM token_blacklist
-      WHERE token = $1 AND expires_at > NOW();
-    `;
-      const params = [token];
-
-      const result = await query(sql, params);
-
-      return result.rows.length > 0;
     } catch (error) {
       if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
         const dbError = new Error('DATABASE_CONNECTION_ERROR');
@@ -278,7 +221,177 @@ class AuthRepository {
         throw error;
       }
 
-      console.error('Unexpected error in AuthRepository.isTokenBlacklisted:', error);
+      console.error('Unexpected error in AuthRepository.storeRefreshToken:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Finds a refresh token in the database
+   * @param {string} token - Refresh token to find
+   * @returns {Promise<Object|null>} Token record or null
+   */
+  async findRefreshToken(token) {
+    try {
+      if (!token) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'Token is required';
+        throw error;
+      }
+
+      const sql = `
+      SELECT id, user_id, token, expires_at, created_at
+      FROM refresh_tokens
+      WHERE token = $1;
+    `;
+      const params = [token];
+
+      const result = await query(sql, params);
+
+      return result.rows.length > 0 ? result.rows[0] : null;
+    } catch (error) {
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        const dbError = new Error('DATABASE_CONNECTION_ERROR');
+        dbError.originalError = error;
+        throw dbError;
+      }
+
+      if (error.message === 'VALIDATION_ERROR') {
+        throw error;
+      }
+
+      console.error('Unexpected error in AuthRepository.findRefreshToken:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Replaces an old refresh token with a new one (token rotation)
+   * @param {string} oldToken - Old refresh token to replace
+   * @param {Object} newTokenData - New token data
+   * @returns {Promise<Object>} New token record
+   */
+  async replaceRefreshToken(oldToken, newTokenData) {
+    try {
+      const { userId, token, expiresAt } = newTokenData;
+
+      if (!oldToken || !userId || !token || !expiresAt) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'All token parameters are required';
+        throw error;
+      }
+
+      const validatedUserId = validateUUID(userId);
+
+      // Use transaction to ensure atomicity
+      const sql = `
+      WITH deleted AS (
+        DELETE FROM refresh_tokens WHERE token = $1 RETURNING user_id
+      )
+      INSERT INTO refresh_tokens (user_id, token, expires_at)
+      SELECT $2, $3, $4
+      WHERE EXISTS (SELECT 1 FROM deleted WHERE user_id = $2)
+      RETURNING id, user_id, token, expires_at, created_at;
+    `;
+      const params = [oldToken, validatedUserId, token, expiresAt];
+
+      const result = await query(sql, params);
+
+      if (result.rows.length > 0) {
+        return result.rows[0];
+      } else {
+        throw new Error('Failed to replace refresh token - old token not found');
+      }
+    } catch (error) {
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        const dbError = new Error('DATABASE_CONNECTION_ERROR');
+        dbError.originalError = error;
+        throw dbError;
+      }
+
+      if (error.message === 'VALIDATION_ERROR') {
+        throw error;
+      }
+
+      console.error('Unexpected error in AuthRepository.replaceRefreshToken:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes a specific refresh token
+   * @param {string} token - Refresh token to delete
+   * @returns {Promise<boolean>} True if deleted, false if not found
+   */
+  async deleteRefreshToken(token) {
+    try {
+      if (!token) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'Token is required';
+        throw error;
+      }
+
+      const sql = `
+      DELETE FROM refresh_tokens 
+      WHERE token = $1;
+    `;
+      const params = [token];
+
+      const result = await query(sql, params);
+
+      return result.rowCount > 0;
+    } catch (error) {
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        const dbError = new Error('DATABASE_CONNECTION_ERROR');
+        dbError.originalError = error;
+        throw dbError;
+      }
+
+      if (error.message === 'VALIDATION_ERROR') {
+        throw error;
+      }
+
+      console.error('Unexpected error in AuthRepository.deleteRefreshToken:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes all refresh tokens for a specific user (logout from all devices)
+   * @param {string} userId - User ID
+   * @returns {Promise<number>} Number of tokens deleted
+   */
+  async deleteAllRefreshTokensForUser(userId) {
+    try {
+      if (!userId) {
+        const error = new Error('VALIDATION_ERROR');
+        error.details = 'UserId is required';
+        throw error;
+      }
+
+      const validatedUserId = validateUUID(userId);
+
+      const sql = `
+      DELETE FROM refresh_tokens 
+      WHERE user_id = $1;
+    `;
+      const params = [validatedUserId];
+
+      const result = await query(sql, params);
+
+      return result.rowCount;
+    } catch (error) {
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        const dbError = new Error('DATABASE_CONNECTION_ERROR');
+        dbError.originalError = error;
+        throw dbError;
+      }
+
+      if (error.message === 'VALIDATION_ERROR') {
+        throw error;
+      }
+
+      console.error('Unexpected error in AuthRepository.deleteAllRefreshTokensForUser:', error);
       throw error;
     }
   }

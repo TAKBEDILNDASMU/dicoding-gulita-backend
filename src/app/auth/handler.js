@@ -108,7 +108,11 @@ class AuthHandler {
           message: 'Login successful',
           data: {
             user: result.user,
-            token: result.token,
+            token: {
+              accessToken: result.accessToken,
+              refreshToken: result.refreshToken,
+              expiresIn: result.expiresIn,
+            },
           },
         })
         .code(200);
@@ -163,11 +167,21 @@ class AuthHandler {
    */
   async logout(request, h) {
     try {
-      // Extract token from request (usually from Authorization header)
-      const token = request.auth.token;
+      // Extract refresh token from request payload
+      const { refreshToken } = request.payload || {};
 
-      // Call the auth service to handle logout (token invalidation)
-      await this.authService.logout({ token });
+      if (!refreshToken) {
+        return h
+          .response({
+            status: 'error',
+            message: 'Refresh token is required',
+            error: 'MISSING_REFRESH_TOKEN',
+          })
+          .code(400);
+      }
+
+      // Call the auth service to handle logout
+      await this.authService.logout({ refreshToken });
 
       return h
         .response({
@@ -176,24 +190,14 @@ class AuthHandler {
         })
         .code(200);
     } catch (error) {
-      if (error.message === 'INVALID_TOKEN') {
+      if (error.message === 'INVALID_REFRESH_TOKEN') {
         return h
           .response({
             status: 'error',
-            message: 'Invalid or expired token',
-            error: 'INVALID_TOKEN',
+            message: 'Invalid or expired refresh token',
+            error: 'INVALID_REFRESH_TOKEN',
           })
           .code(401);
-      }
-
-      if (error.message === 'TOKEN_ALREADY_INVALIDATED') {
-        return h
-          .response({
-            status: 'error',
-            message: 'Token already invalidated',
-            error: 'TOKEN_ALREADY_INVALIDATED',
-          })
-          .code(400);
       }
 
       if (error.message === 'DATABASE_CONNECTION_ERROR') {
