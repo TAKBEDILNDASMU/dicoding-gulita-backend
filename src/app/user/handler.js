@@ -85,7 +85,7 @@ class UserHandler {
     } catch (error) {
       if (error.code === '23505') {
         // PostgreSQL unique violation
-        if (error.message.includes('USERNAME_ALREADY_EXISTS')) {
+        if (error.constraint === 'users_username_key') {
           return h
             .response({
               status: 'error',
@@ -94,7 +94,7 @@ class UserHandler {
             })
             .code(409);
         }
-        if (error.message.includes('EMAIL_ALREADY_EXISTS')) {
+        if (error.constraint === 'users_email_key') {
           return h
             .response({
               status: 'error',
@@ -168,12 +168,12 @@ class UserHandler {
         })
         .code(200);
     } catch (error) {
-      if (error.message === 'INVALID_CREDENTIALS') {
+      if (error.message === 'INVALID_CURRENT_PASSWORD') {
         return h
           .response({
             status: 'error',
             message: 'Current password is incorrect',
-            error: 'INVALID_CREDENTIALS',
+            error: 'INVALID_CURRENT_PASSWORD',
           })
           .code(401);
       }

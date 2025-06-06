@@ -1,4 +1,4 @@
-import { hashPassword } from '../../utils/passwordUtils.js';
+import { comparePassword, hashPassword } from '../../utils/passwordUtils.js';
 
 class UserService {
   constructor(repository) {
@@ -108,6 +108,11 @@ class UserService {
         throw error;
       }
 
+      // Re-throw database constraint errors (like unique violations)
+      if (error.code && error.code.startsWith('23')) {
+        throw error;
+      }
+
       // Log unexpected errors
       console.error('Unexpected error in AuthService.updateUserProfile:', error);
       throw new Error('Failed to update user profile due to an unexpected error');
@@ -166,7 +171,7 @@ class UserService {
       }
 
       // Verify current password
-      const isCurrentPasswordValid = await verifyPassword(currentPassword, userWithPassword.password_hash);
+      const isCurrentPasswordValid = await comparePassword(currentPassword, userWithPassword.password_hash);
       if (!isCurrentPasswordValid) {
         const error = new Error('INVALID_CURRENT_PASSWORD');
         error.details = 'Current password is incorrect';

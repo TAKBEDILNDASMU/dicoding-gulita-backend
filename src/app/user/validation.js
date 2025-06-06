@@ -82,20 +82,12 @@ export const changePasswordSchema = Joi.object({
     'any.required': '"currentPassword" is required',
   }),
 
-  newPassword: Joi.string()
-    .min(8)
-    .max(128)
-    .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]'))
-    .required()
-    .messages({
-      'string.base': '"newPassword" must be a string',
-      'string.empty': '"newPassword" cannot be empty',
-      'string.min': '"newPassword" must be at least {#limit} characters long',
-      'string.max': '"newPassword" must not exceed {#limit} characters',
-      'string.pattern.base':
-        '"newPassword" must contain at least one lowercase letter, one uppercase letter, one number, and one special character (@$!%*?&)',
-      'any.required': '"newPassword" is required',
-    }),
+  newPassword: Joi.string().min(8).max(128).required().messages({
+    'string.base': '"newPassword" must be a string',
+    'string.empty': '"newPassword" cannot be empty',
+    'string.min': '"newPassword" must be at least {#limit} characters long',
+    'string.max': '"newPassword" must not exceed {#limit} characters',
+  }),
 }).options({
   abortEarly: false,
   stripUnknown: true,
@@ -187,17 +179,6 @@ export const paginationQuerySchema = Joi.object({
  * @returns {Object} Formatted error response
  */
 export const validationFailAction = (request, h, err) => {
-  // Log the detailed error for server-side debugging
-  console.error('Validation Error Details:', {
-    path: request.path,
-    method: request.method,
-    payload: request.payload,
-    query: request.query,
-    params: request.params,
-    headers: request.headers,
-    errors: err.details,
-  });
-
   // Format validation errors for client response
   const errors = err.details.map((detail) => ({
     field: detail.path.join('.'),
