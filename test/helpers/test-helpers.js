@@ -1,33 +1,29 @@
 'use strict';
 
-// Helper to create a test user
-export const createTestUser = async (server, userData = {}) => {
-  const defaultUser = {
-    username: `testuser_${Date.now()}`,
-    email: `test_${Date.now()}@example.com`,
-    password: 'password123',
-  };
-
-  const user = { ...defaultUser, ...userData };
-
-  const res = await server.inject({
+// Helper function to register and login a user to get a token
+export const getAuthToken = async (server) => {
+  // Register a new user
+  await server.inject({
     method: 'POST',
     url: '/api/v1/users/register',
-    payload: user,
+    payload: {
+      username: 'testUser1',
+      email: 'testUser@example.com',
+      password: 'password123',
+    },
   });
 
-  return { user, response: res };
-};
-
-// Helper to login and get token
-export const loginUser = async (server, credentials) => {
+  // Login to get the token
   const res = await server.inject({
     method: 'POST',
-    url: '/api/v1/auth/login',
-    payload: credentials,
+    url: '/api/v1/users/login',
+    payload: {
+      email: 'testUser@example.com',
+      password: 'password123',
+    },
   });
 
-  return res;
+  return res.result.data.token;
 };
 
 // Helper to make authenticated requests
