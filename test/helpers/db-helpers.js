@@ -17,8 +17,6 @@ export const clearTestData = async () => {
     await pool.query('DELETE FROM users WHERE email LIKE $1', ['test_%@example.com']);
     await pool.query('DELETE FROM users WHERE username LIKE $1', ['testuser_%']);
     await pool.query('DELETE FROM users WHERE username LIKE $1', ['user_%']);
-
-    console.log('✅ Test data cleared (users and blogs)');
   } catch (error) {
     console.error('❌ Error clearing test data:', error);
     throw error;
@@ -176,11 +174,65 @@ export const createTestBlogsForPagination = async (totalCount = 25) => {
       const result = await pool.query(query, flatParams);
       blogs.push(...result.rows);
     }
-
-    console.log(`✅ Successfully created ${blogs.length} blogs for pagination testing`);
     return blogs;
   } catch (error) {
     console.error('❌ Error creating pagination test blogs in DB:', error);
+    throw error;
+  }
+};
+
+// Helper to create multiple health check results for a user
+export const createTestCheckResults = async (userId, count = 5) => {
+  const results = [];
+  const healthStatusOptions = ['low', 'medium', 'high'];
+  const educationOptions = ['elementary', 'junior', 'senior', 'college'];
+  const diabetesRiskOptions = ['non-diabetic', 'diabetic'];
+
+  for (let i = 0; i < count; i++) {
+    results.push({
+      user_id: userId,
+      bmi: parseFloat((18.5 + Math.random() * 21.5).toFixed(1)), // BMI between 18.5 and 40.0
+      age: Math.floor(20 + Math.random() * 61), // Age between 20 and 80
+      income: Math.floor(20000 + Math.random() * 130001), // Income between 20k and 150k
+      phys_hlth: healthStatusOptions[i % healthStatusOptions.length],
+      education: educationOptions[i % educationOptions.length],
+      gen_hlth: healthStatusOptions[(i + 1) % healthStatusOptions.length],
+      ment_hlth: healthStatusOptions[(i + 2) % healthStatusOptions.length],
+      diabetes_result: diabetesRiskOptions[i % diabetesRiskOptions.length],
+    });
+  }
+
+  const values = results
+    .map((_, index) => {
+      const paramStart = index * 9;
+      return `($${paramStart + 1}, $${paramStart + 2}, $${paramStart + 3}, $${paramStart + 4}, $${paramStart + 5}, $${paramStart + 6}, $${paramStart + 7}, $${paramStart + 8}, $${paramStart + 9})`;
+    })
+    .join(', ');
+
+  const query = `
+        INSERT INTO check_results (
+            user_id, bmi, age, income, phys_hlth, education, gen_hlth, ment_hlth, diabetes_result
+        ) VALUES ${values}
+        RETURNING *
+    `;
+
+  const flatParams = results.flatMap((r) => [
+    r.user_id,
+    r.bmi,
+    r.age,
+    r.income,
+    r.phys_hlth,
+    r.education,
+    r.gen_hlth,
+    r.ment_hlth,
+    r.diabetes_result,
+  ]);
+
+  try {
+    const result = await pool.query(query, flatParams);
+    return result.rows;
+  } catch (error) {
+    console.error('❌ Error creating test check results in DB:', error);
     throw error;
   }
 };

@@ -4,13 +4,15 @@
 export const shorthands = undefined;
 
 /**
- * @param pgm {import('node-pg-migrate').MigrationBuilder}
+ * @param {import('node-pg-migrate').MigrationBuilder} pgm
  */
 export const up = (pgm) => {
-  // Ensure the uuid-ossp extension is available (only needs to be done once)
-  pgm.createExtension('uuid-ossp', { ifNotExists: true });
+  // Define custom types for categorical data
+  pgm.createType('health_status', ['low', 'medium', 'high']);
+  pgm.createType('education_level', ['elementary', 'junior', 'senior', 'college']);
+  pgm.createType('diabetes_risk', ['non-diabetic', 'diabetic']);
 
-  pgm.createTable('user_health_data', {
+  pgm.createTable('check_results', {
     id: {
       type: 'uuid',
       primaryKey: true,
@@ -20,47 +22,54 @@ export const up = (pgm) => {
       type: 'uuid',
       notNull: true,
       references: '"users"(id)',
-      onDelete: 'cascade',
+      onDelete: 'CASCADE',
     },
     bmi: {
       type: 'real',
       notNull: true,
     },
-    income: {
+    age: {
       type: 'integer',
-      notNull: false,
-    },
-    physical_activity: {
-      type: 'boolean',
       notNull: true,
     },
-    education_level: {
-      type: 'varchar(50)',
-      notNull: false,
-    },
-    general_health: {
-      type: 'varchar(50)',
-      notNull: false,
-    },
-    mental_health_score: {
+    income: {
       type: 'integer',
-      notNull: false,
+      notNull: true,
     },
-    prediction_result: {
-      type: 'boolean',
+    phys_hlth: {
+      type: 'health_status',
+      notNull: true,
+    },
+    education: {
+      type: 'education_level',
+      notNull: true,
+    },
+    gen_hlth: {
+      type: 'health_status',
+      notNull: true,
+    },
+    ment_hlth: {
+      type: 'health_status',
+      notNull: true,
+    },
+    diabetes_result: {
+      type: 'diabetes_risk',
       notNull: true,
     },
     created_at: {
       type: 'timestamp',
-      default: pgm.func('current_timestamp'),
       notNull: true,
+      default: pgm.func('current_timestamp'),
     },
   });
 };
 
 /**
- * @param pgm {import('node-pg-migrate').MigrationBuilder}
+ * @param {import('node-pg-migrate').MigrationBuilder} pgm
  */
 export const down = (pgm) => {
-  pgm.dropTable('user_health_data');
+  pgm.dropTable('check_results');
+  pgm.dropType('health_status');
+  pgm.dropType('education_level');
+  pgm.dropType('diabetes_risk');
 };

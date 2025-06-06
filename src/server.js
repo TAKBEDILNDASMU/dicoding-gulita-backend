@@ -4,6 +4,7 @@ import config from './config/index.js';
 import authRoutes from './app/auth/routes.js';
 import userRoutes from './app/user/routes.js';
 import blogRoutes from './app/blog/routes.js';
+import checkRoutes from './app/check/routes.js';
 import Joi from 'joi';
 import Jwt from '@hapi/jwt';
 
@@ -60,7 +61,7 @@ const createServer = async () => {
   server.auth.default('jwt');
 
   // Register routes
-  const allRoutes = [...authRoutes, ...userRoutes, ...blogRoutes];
+  const allRoutes = [...authRoutes, ...userRoutes, ...blogRoutes, ...checkRoutes];
   server.route(allRoutes);
 
   return server;

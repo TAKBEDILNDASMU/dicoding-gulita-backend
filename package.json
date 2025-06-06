@@ -11,7 +11,8 @@
         "migrate:create": "npm run migrate create --",
         "migrate:up": "npm run migrate up",
         "migrate:down": "npm run migrate down",
-        "test": "lab test/**/*.test.js"
+        "test": "lab test/**/*.test.js",
+        "test:file": "lab"
     },
     "keywords": [],
     "author": "",
