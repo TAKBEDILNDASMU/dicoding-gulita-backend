@@ -20,16 +20,15 @@ export const authorizationHeaderSchema = Joi.object({
 
 // Validation schema for the health check payload
 export const createCheckPayloadSchema = Joi.object({
-  bmi: Joi.number().precision(1).required().description('Body Mass Index'),
-  age: Joi.number().integer().min(1).required().description('User age'),
-  income: Joi.number().integer().min(0).required().description('User income'),
-  phys_hlth: Joi.string().valid('low', 'medium', 'high').required().description('Physical health status'),
-  education: Joi.string().valid('elementary', 'junior', 'senior', 'college').required().description('Education level'),
-  gen_hlth: Joi.string().valid('low', 'medium', 'high').required().description('General health status'),
-  ment_hlth: Joi.string().valid('low', 'medium', 'high').required().description('Mental health status'),
-  diabetes_result: Joi.string().valid('non-diabetic', 'diabetic').required().description('Diabetes prediction result'),
+  bmi: Joi.number().required().description('Body Mass Index (Float)'),
+  age: Joi.number().integer().valid(3, 5, 7, 9).required().description('User age category'),
+  income: Joi.number().integer().valid(1, 3, 5, 7, 8).required().description('User income category'),
+  education: Joi.number().integer().valid(3, 4, 5, 6).required().description('Education level category'),
+  gen_hlth: Joi.number().integer().valid(1, 2, 3, 4, 5).required().description('General health status category'),
+  phys_hlth: Joi.number().integer().valid(0, 7, 15, 30).required().description('Physical health status category'),
+  high_bp: Joi.number().integer().valid(0, 1).required().description('High Blood Pressure health status category'),
+  diabetes_result: Joi.number().integer().valid(0, 1).optional().description('Diabetes prediction result'),
 });
-
 export const checkIdParamSchema = Joi.object({
   id: Joi.string().uuid().required().description('The ID of the check record to delete'),
 });

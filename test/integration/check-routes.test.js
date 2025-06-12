@@ -56,7 +56,7 @@ describe('Check Route', () => {
         'phys_hlth',
         'education',
         'gen_hlth',
-        'ment_hlth',
+        'high_bp',
         'diabetes_result',
         'created_at',
       ]);
@@ -64,7 +64,9 @@ describe('Check Route', () => {
 
     it('should return an empty array when the user has no health check history', async () => {
       await clearTestData();
-      authToken = await getAuthToken(server);
+      // Need to create a user to get a token, even if they have no checks
+      const authData = await createAuthenticatedUserAndGetToken(server);
+      authToken = authData.authToken;
 
       // Act: Make the API call
       const res = await server.inject({
@@ -92,15 +94,15 @@ describe('Check Route', () => {
   });
 
   describe('POST /api/v1/users/checks', () => {
+    // This payload now uses the correct integer values as per the Joi schema
     const validCheckPayload = {
-      bmi: 24.5,
-      age: 35,
-      income: 50000,
-      phys_hlth: 'medium',
-      education: 'college',
-      gen_hlth: 'high',
-      ment_hlth: 'high',
-      diabetes_result: 'non-diabetic',
+      bmi: 25,
+      age: 3,
+      income: 8,
+      education: 6,
+      gen_hlth: 5,
+      phys_hlth: 0,
+      high_bp: 0,
     };
 
     it('should create a new health check record successfully', async () => {
@@ -123,7 +125,8 @@ describe('Check Route', () => {
     });
 
     it('should return 400 Bad Request for invalid payload data', async () => {
-      const invalidPayload = { ...validCheckPayload, age: -5 }; // Invalid age
+      // Invalid age (10 is not in the valid list)
+      const invalidPayload = { ...validCheckPayload, age: 10 };
 
       const res = await server.inject({
         method: 'POST',
@@ -153,6 +156,7 @@ describe('Check Route', () => {
     let userTwoAuth;
 
     beforeEach(async () => {
+      // Clear data and create two distinct users for ownership tests
       await clearTestData();
       userOneAuth = await createAuthenticatedUserAndGetToken(server);
       userTwoAuth = await createAuthenticatedUserAndGetToken(server);
@@ -220,6 +224,31 @@ describe('Check Route', () => {
       });
 
       expect(res.statusCode).to.equal(401);
+    });
+  });
+
+  describe('POST /api/v1/checks', () => {
+    // This payload also uses the correct integer values now
+    const publicPayload = {
+      bmi: 28.1,
+      age: 9,
+      income: 8,
+      phys_hlth: 30,
+      education: 3,
+      gen_hlth: 5,
+      high_bp: 0,
+    };
+
+    it('should create a new health check record successfully and get prediction', async () => {
+      const res = await server.inject({
+        method: 'POST',
+        url: '/api/v1/checks',
+        payload: publicPayload,
+      });
+
+      const payload = JSON.parse(res.payload);
+      expect(res.statusCode).to.equal(201);
+      expect(payload.status).to.equal('success');
     });
   });
 });

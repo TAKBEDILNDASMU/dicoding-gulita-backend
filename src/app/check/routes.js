@@ -56,6 +56,35 @@ const createCheckHistoryRoute = {
 };
 
 /**
+ * Create new public health check entry (No Authentication)
+ * This route is for public data submission, e.g., for ML model training.
+ */
+const createPublicCheckRoute = {
+  method: 'POST',
+  path: '/api/v1/checks', // Note the new, more generic path
+  options: {
+    description: 'Create a new public health check entry',
+    notes: 'Adds a new health check record anonymously. This data may be used for analysis with services like Hugging Face.',
+    tags: ['api', 'checks', 'public'],
+    validate: {
+      // No 'authorization' header validation is needed for a public route
+      payload: createCheckPayloadSchema,
+      failAction: validationFailAction,
+    },
+    response: {
+      failAction: 'ignore',
+    },
+    auth: false, // This is the key change to make the route public
+    cors: {
+      origin: ['*'],
+      additionalHeaders: ['cache-control', 'x-requested-with'],
+    },
+  },
+  // You will need to create this new handler function in your checkHandler
+  handler: checkHandler.createPublicCheck,
+};
+
+/**
  * Delete a specific health check entry
  */
 const deleteCheckHistoryRoute = {
@@ -86,6 +115,6 @@ const deleteCheckHistoryRoute = {
  * Array of all authentication routes
  * Export all routes for registration with Hapi server
  */
-const routes = [getCheckHistoryRoute, createCheckHistoryRoute, deleteCheckHistoryRoute];
+const routes = [getCheckHistoryRoute, createCheckHistoryRoute, deleteCheckHistoryRoute, createPublicCheckRoute];
 
 export default routes;

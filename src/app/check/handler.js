@@ -4,6 +4,7 @@ class CheckHandler {
 
     this.getCheckHistory = this.getCheckHistory.bind(this);
     this.createCheckHistory = this.createCheckHistory.bind(this);
+    this.createPublicCheck = this.createPublicCheck.bind(this);
     this.deleteCheckHistory = this.deleteCheckHistory.bind(this);
   }
 
@@ -92,6 +93,54 @@ class CheckHandler {
       }
 
       console.error('Unexpected error in createCheckHistory handler:', error);
+      return h
+        .response({
+          status: 'error',
+          message: 'An unexpected error occurred',
+          error: 'INTERNAL_SERVER_ERROR',
+        })
+        .code(500);
+    }
+  }
+
+  /**
+   * Handles request to create a new public health check entry.
+   * Does not require authentication.
+   * @param {Object} request - Hapi request object
+   * @param {Object} h - Hapi response toolkit
+   * @returns {Object} HTTP response with the created data or an error
+   */
+  async createPublicCheck(request, h) {
+    try {
+      // The payload is the entire data object, no userId from auth
+      const checkData = request.payload;
+
+      // Call a new service method to handle creating a public entry
+      const newCheck = await this.checkService.getPublicDiabetesPrediction(checkData);
+
+      return h
+        .response({
+          status: 'success',
+          message: 'Public health check record created successfully.',
+          data: {
+            check: newCheck,
+          },
+        })
+        .code(201);
+    } catch (error) {
+      // Handle potential validation errors from the service layer
+      if (error.message === 'VALIDATION_ERROR') {
+        return h
+          .response({
+            status: 'error',
+            message: 'Invalid input data',
+            error: 'VALIDATION_ERROR',
+            details: error.details,
+          })
+          .code(400);
+      }
+
+      console.error('Unexpected error in createPublicCheck handler:', error);
       return h
         .response({
           status: 'error',

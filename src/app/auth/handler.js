@@ -5,6 +5,7 @@ class AuthHandler {
     this.register = this.register.bind(this);
     this.login = this.login.bind(this);
     this.logout = this.logout.bind(this);
+    this.refreshToken = this.refreshToken.bind(this);
   }
 
   /**
@@ -212,6 +213,68 @@ class AuthHandler {
 
       console.error('Unexpected error in logout handler:', error);
 
+      return h
+        .response({
+          status: 'error',
+          message: 'An unexpected error occurred',
+          error: 'INTERNAL_SERVER_ERROR',
+        })
+        .code(500);
+    }
+  }
+
+  /**
+   * Handles access token refresh requests
+   * @param {Object} request - Hapi request object
+   * @param {Object} h - Hapi response toolkit
+   * @returns {Object} HTTP response with a new access token or an error
+   */
+  async refreshToken(request, h) {
+    try {
+      const { refreshToken } = request.payload;
+
+      // Call the auth service to handle the token refresh logic
+      const result = await this.authService.refreshToken({ refreshToken });
+
+      return h
+        .response({
+          status: 'success',
+          message: 'Access token refreshed successfully',
+          data: {
+            token: {
+              accessToken: result.accessToken,
+              expiresIn: result.expiresIn,
+            },
+          },
+        })
+        .code(200);
+    } catch (error) {
+      // Handle specific error for an invalid or expired refresh token
+      if (error.message === 'INVALID_REFRESH_TOKEN') {
+        return h
+          .response({
+            status: 'error',
+            message: 'Invalid or expired refresh token. Please log in again.',
+            error: 'INVALID_REFRESH_TOKEN',
+          })
+          .code(401); // Unauthorized
+      }
+
+      // Handle database connection errors
+      if (error.message === 'DATABASE_CONNECTION_ERROR') {
+        return h
+          .response({
+            status: 'error',
+            message: 'Service temporarily unavailable',
+            error: 'SERVICE_UNAVAILABLE',
+          })
+          .code(503);
+      }
+
+      // Log any other unexpected errors
+      console.error('Unexpected error in refreshToken handler:', error);
+
+      // Generic fallback for all other errors
       return h
         .response({
           status: 'error',

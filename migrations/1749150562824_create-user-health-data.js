@@ -7,11 +7,6 @@ export const shorthands = undefined;
  * @param {import('node-pg-migrate').MigrationBuilder} pgm
  */
 export const up = (pgm) => {
-  // Define custom types for categorical data
-  pgm.createType('health_status', ['low', 'medium', 'high']);
-  pgm.createType('education_level', ['elementary', 'junior', 'senior', 'college']);
-  pgm.createType('diabetes_risk', ['non-diabetic', 'diabetic']);
-
   pgm.createTable('check_results', {
     id: {
       type: 'uuid',
@@ -25,36 +20,51 @@ export const up = (pgm) => {
       onDelete: 'CASCADE',
     },
     bmi: {
-      type: 'real',
+      // Changed to double precision for Float64
+      type: 'double precision',
       notNull: true,
     },
     age: {
       type: 'integer',
       notNull: true,
+      // Added CHECK constraint for specific values
+      check: 'age IN (3, 5, 7, 9)',
     },
     income: {
       type: 'integer',
       notNull: true,
-    },
-    phys_hlth: {
-      type: 'health_status',
-      notNull: true,
+      // Added CHECK constraint for specific values
+      check: 'income IN (1, 3, 5, 7, 8)',
     },
     education: {
-      type: 'education_level',
+      type: 'integer',
       notNull: true,
+      // Added CHECK constraint for specific values
+      check: 'education IN (3, 4, 5, 6)',
     },
     gen_hlth: {
-      type: 'health_status',
+      type: 'integer',
       notNull: true,
+      // Added CHECK constraint for specific values
+      check: 'gen_hlth IN (1, 2, 3, 4, 5)',
     },
-    ment_hlth: {
-      type: 'health_status',
+    phys_hlth: {
+      type: 'integer',
       notNull: true,
+      // Added CHECK constraint for specific values
+      check: 'phys_hlth IN (0, 7, 15, 30)',
+    },
+    high_bp: {
+      type: 'integer',
+      notNull: true,
+      // Added CHECK constraint for specific values
+      check: 'high_bp IN (0, 1)',
     },
     diabetes_result: {
-      type: 'diabetes_risk',
+      // Changed to integer, assuming 0 for non-diabetic and 1 for diabetic
+      type: 'integer',
       notNull: true,
+      check: 'diabetes_result IN (0, 1)',
     },
     created_at: {
       type: 'timestamp',
@@ -68,8 +78,7 @@ export const up = (pgm) => {
  * @param {import('node-pg-migrate').MigrationBuilder} pgm
  */
 export const down = (pgm) => {
+  // The down migration simply drops the table.
+  // The custom types are no longer created, so no need to drop them.
   pgm.dropTable('check_results');
-  pgm.dropType('health_status');
-  pgm.dropType('education_level');
-  pgm.dropType('diabetes_risk');
 };

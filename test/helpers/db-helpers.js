@@ -128,7 +128,7 @@ export const createTestBlogsForPagination = async (totalCount = 25) => {
           title: `Blog Post Test ${blogIndex.toString().padStart(3, '0')}`,
           content: `This is the content for blog post number ${blogIndex}. It contains useful information and insights.`,
           excerpt: `Excerpt for blog post ${blogIndex}`,
-          category: ['diabetes', 'nutrition', 'fitness', 'mental-health', 'lifestyle'][blogIndex % 5],
+          category: ['diabetes', 'nutrition', 'fitness', 'high blood pressure', 'lifestyle'][blogIndex % 5],
           tags: [`tag${blogIndex}`, 'test', 'pagination'],
           author: 'testuser_jane_doe',
           featured_image_url: `https://placehold.co/600x400/EEE/31343C?text=Blog_${blogIndex}`,
@@ -181,56 +181,54 @@ export const createTestBlogsForPagination = async (totalCount = 25) => {
   }
 };
 
-// Helper to create multiple health check results for a user
+// Helper to create multiple health check results for a user with valid data
 export const createTestCheckResults = async (userId, count = 5) => {
   const results = [];
-  const healthStatusOptions = ['low', 'medium', 'high'];
-  const educationOptions = ['elementary', 'junior', 'senior', 'college'];
-  const diabetesRiskOptions = ['non-diabetic', 'diabetic'];
+  // Define arrays of valid options based on the new schema
+  const ageOptions = [3, 5, 7, 9];
+  const incomeOptions = [1, 3, 5, 7, 8];
+  const educationOptions = [3, 4, 5, 6];
+  const genHlthOptions = [1, 2, 3, 4, 5];
+  const physHlthOptions = [0, 7, 15, 30];
+  const highBpOptions = [0, 1];
+  const diabetesRiskOptions = [0, 1]; // 0 for non-diabetic, 1 for diabetic
 
   for (let i = 0; i < count; i++) {
     results.push({
       user_id: userId,
       bmi: parseFloat((18.5 + Math.random() * 21.5).toFixed(1)), // BMI between 18.5 and 40.0
-      age: Math.floor(20 + Math.random() * 61), // Age between 20 and 80
-      income: Math.floor(20000 + Math.random() * 130001), // Income between 20k and 150k
-      phys_hlth: healthStatusOptions[i % healthStatusOptions.length],
+      // Cycle through the valid options for each field
+      age: ageOptions[i % ageOptions.length],
+      income: incomeOptions[i % incomeOptions.length],
       education: educationOptions[i % educationOptions.length],
-      gen_hlth: healthStatusOptions[(i + 1) % healthStatusOptions.length],
-      ment_hlth: healthStatusOptions[(i + 2) % healthStatusOptions.length],
+      gen_hlth: genHlthOptions[i % genHlthOptions.length],
+      phys_hlth: physHlthOptions[i % physHlthOptions.length],
+      high_bp: highBpOptions[i % highBpOptions.length],
       diabetes_result: diabetesRiskOptions[i % diabetesRiskOptions.length],
     });
   }
 
   const values = results
     .map((_, index) => {
+      // FIX: The number of columns is 9, so the multiplier must be 9.
       const paramStart = index * 9;
+      // FIX: The placeholder string must contain 9 placeholders.
       return `($${paramStart + 1}, $${paramStart + 2}, $${paramStart + 3}, $${paramStart + 4}, $${paramStart + 5}, $${paramStart + 6}, $${paramStart + 7}, $${paramStart + 8}, $${paramStart + 9})`;
     })
     .join(', ');
 
   const query = `
         INSERT INTO check_results (
-            user_id, bmi, age, income, phys_hlth, education, gen_hlth, ment_hlth, diabetes_result
+            user_id, bmi, age, income, education, gen_hlth, phys_hlth, high_bp, diabetes_result
         ) VALUES ${values}
         RETURNING *
     `;
 
-  const flatParams = results.flatMap((r) => [
-    r.user_id,
-    r.bmi,
-    r.age,
-    r.income,
-    r.phys_hlth,
-    r.education,
-    r.gen_hlth,
-    r.ment_hlth,
-    r.diabetes_result,
-  ]);
+  const flatParams = results.flatMap((r) => [r.user_id, r.bmi, r.age, r.income, r.education, r.gen_hlth, r.phys_hlth, r.high_bp, r.diabetes_result]);
 
   try {
-    const result = await pool.query(query, flatParams);
-    return result.rows;
+    const { rows } = await pool.query(query, flatParams);
+    return rows;
   } catch (error) {
     console.error('❌ Error creating test check results in DB:', error);
     throw error;

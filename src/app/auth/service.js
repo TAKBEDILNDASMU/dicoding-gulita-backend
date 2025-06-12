@@ -281,46 +281,40 @@ class AuthService {
   }
 
   /**
-   * Refreshes a JWT token
-   * @param {string} token - Current JWT token
-   * @returns {string} New JWT token
+   * Refreshes an access token using a valid refresh token.
+   * @param {Object} params - Refresh parameters
+   * @param {string} params.refreshToken - The refresh token provided by the user.
+   * @returns {Promise<Object>} Object containing the new access token and its expiry.
    * @throws {Error} Token refresh errors
    */
-  async refreshToken(token) {
+  async refreshToken({ refreshToken }) {
     try {
-      // Verify the current token
-      const decoded = this.verifyToken(token);
-
-      // Get fresh user data
-      const user = await this.repository.findById(decoded.id);
-      if (!user) {
-        throw new Error('USER_NOT_FOUND');
+      if (!refreshToken) {
+        throw new Error('INVALID_REFRESH_TOKEN');
       }
 
-      // Generate new tokens
-      const newAccessToken = this.#generateAccessToken(user);
-      const newRefreshToken = this.#generateRefreshToken();
+      const tokenRecord = await this.repository.findUserByRefreshToken(refreshToken);
+      if (!tokenRecord || new Date(tokenRecord.expires_at) < new Date()) {
+        if (tokenRecord) {
+          await this.repository.deleteAllRefreshTokensForUser(tokenRecord.user_id);
+        }
+        throw new Error('INVALID_REFRESH_TOKEN');
+      }
 
-      // Replace old refresh token with new one (rotation)
-      await this.repository.replaceRefreshToken(refreshToken, {
-        userId: user.id,
-        token: newRefreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      });
+      const user = {
+        id: tokenRecord.user_id,
+        email: tokenRecord.email,
+        username: tokenRecord.username,
+      };
+
+      const newAccessToken = this.#generateAccessToken(user);
 
       return {
         accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-        expiresIn: 15 * 60, // 15 minutes in seconds
+        expiresIn: config.jwt.accessTokenExpiresIn,
       };
     } catch (error) {
-      // Re-throw known errors
-      if (
-        error.message === 'INVALID_TOKEN' ||
-        error.message === 'TOKEN_EXPIRED' ||
-        error.message === 'USER_NOT_FOUND' ||
-        error.message === 'DATABASE_CONNECTION_ERROR'
-      ) {
+      if (error.message === 'INVALID_REFRESH_TOKEN' || error.message === 'DATABASE_CONNECTION_ERROR') {
         throw error;
       }
 

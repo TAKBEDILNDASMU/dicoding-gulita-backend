@@ -1,11 +1,17 @@
 'use strict';
 import Lab from '@hapi/lab';
+import jwt from 'jsonwebtoken';
 import { expect } from '@hapi/code';
 import { init } from '../../src/server.js';
 import { clearTestData } from '../helpers/db-helpers.js';
+import { getAuthToken } from '../helpers/test-helpers.js';
+import config from '../../src/config/index.js';
 
 export const lab = Lab.script();
 const { before, after, describe, it } = lab;
+
+// Helper function to introduce a delay
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('Auth Routes', () => {
   let server;
@@ -241,6 +247,56 @@ describe('Auth Routes', () => {
       });
 
       expect(logoutRes.statusCode).to.equal(401);
+    });
+  });
+
+  describe('POST /api/v1/users/token/refresh', () => {
+    it('should successfully generate a new access token with a valid refresh token', async () => {
+      await clearTestData();
+      // Get a fresh token for this specific test
+      const authToken = await getAuthToken(server);
+
+      // Wait for more than a second to ensure the JWT 'iat' timestamp differs
+      await sleep(1100);
+
+      const res = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/token/refresh',
+        payload: {
+          refreshToken: authToken.refreshToken,
+        },
+      });
+
+      const payload = res.result;
+      expect(res.statusCode).to.equal(200);
+      expect(payload.status).to.equal('success');
+      expect(payload.data.token).to.be.an.object();
+      expect(payload.data.token.accessToken).to.be.a.string();
+      expect(payload.data.token.accessToken).to.not.equal(authToken.accessToken);
+    });
+
+    it('should reject the request if the refresh token is invalid or does not exist', async () => {
+      const res = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/token/refresh',
+        payload: {
+          refreshToken: 'this-is-a-completely-invalid-token',
+        },
+      });
+
+      expect(res.statusCode).to.equal(401);
+      expect(res.result.error).to.equal('INVALID_REFRESH_TOKEN');
+    });
+
+    it('should reject the request if the refresh token is missing from the payload', async () => {
+      const res = await server.inject({
+        method: 'POST',
+        url: '/api/v1/users/token/refresh',
+        payload: {},
+      });
+
+      expect(res.statusCode).to.equal(400);
+      expect(res.result.error).to.equal('VALIDATION_ERROR');
     });
   });
 });

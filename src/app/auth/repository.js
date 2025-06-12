@@ -266,62 +266,52 @@ class AuthRepository {
   }
 
   /**
-   * Replaces an old refresh token with a new one (token rotation)
-   * @param {string} oldToken - Old refresh token to replace
-   * @param {Object} newTokenData - New token data
-   * @returns {Promise<Object>} New token record
+   * [NEW] Finds a user by their refresh token.
+   * Joins refresh_tokens and users tables for efficiency.
+   * @param {string} token - The refresh token to search for.
+   * @returns {Promise<Object|null>} Joined user and token object or null if not found.
    */
-  async replaceRefreshToken(oldToken, newTokenData) {
+  async findUserByRefreshToken(token) {
     try {
-      const { userId, token, expiresAt } = newTokenData;
-
-      if (!oldToken || !userId || !token || !expiresAt) {
+      if (!token) {
         const error = new Error('VALIDATION_ERROR');
-        error.details = 'All token parameters are required';
+        error.details = 'Token is required';
         throw error;
       }
 
-      const validatedUserId = validateUUID(userId);
-
-      // Use transaction to ensure atomicity
       const sql = `
-      WITH deleted AS (
-        DELETE FROM refresh_tokens WHERE token = $1 RETURNING user_id
-      )
-      INSERT INTO refresh_tokens (user_id, token, expires_at)
-      SELECT $2, $3, $4
-      WHERE EXISTS (SELECT 1 FROM deleted WHERE user_id = $2)
-      RETURNING id, user_id, token, expires_at, created_at;
-    `;
-      const params = [oldToken, validatedUserId, token, expiresAt];
-
+        SELECT
+          u.id AS user_id,
+          u.username,
+          u.email,
+          rt.token,
+          rt.expires_at
+        FROM refresh_tokens rt
+        JOIN users u ON rt.user_id = u.id
+        WHERE rt.token = $1;
+      `;
+      const params = [token];
       const result = await query(sql, params);
 
-      if (result.rows.length > 0) {
-        return result.rows[0];
-      } else {
-        throw new Error('Failed to replace refresh token - old token not found');
-      }
+      return result.rows.length > 0 ? result.rows[0] : null;
     } catch (error) {
       if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
         const dbError = new Error('DATABASE_CONNECTION_ERROR');
         dbError.originalError = error;
         throw dbError;
       }
-
       if (error.message === 'VALIDATION_ERROR') {
         throw error;
       }
-
-      console.error('Unexpected error in AuthRepository.replaceRefreshToken:', error);
+      console.error('Unexpected error in AuthRepository.findUserByRefreshToken:', error);
       throw error;
     }
   }
 
   /**
-   * Deletes a specific refresh token
-   * @param {string} token - Refresh token to delete
-   * @returns {Promise<boolean>} True if deleted, false if not found
+   * Deletes a specific refresh token.
+   * @param {string} token - Refresh token to delete.
+   * @returns {Promise<boolean>} True if a row was deleted, otherwise false.
    */
   async deleteRefreshToken(token) {
     try {
@@ -332,11 +322,10 @@ class AuthRepository {
       }
 
       const sql = `
-      DELETE FROM refresh_tokens 
-      WHERE token = $1;
-    `;
+        DELETE FROM refresh_tokens
+        WHERE token = $1;
+      `;
       const params = [token];
-
       const result = await query(sql, params);
 
       return result.rowCount > 0;
@@ -346,20 +335,18 @@ class AuthRepository {
         dbError.originalError = error;
         throw dbError;
       }
-
       if (error.message === 'VALIDATION_ERROR') {
         throw error;
       }
-
       console.error('Unexpected error in AuthRepository.deleteRefreshToken:', error);
       throw error;
     }
   }
 
   /**
-   * Deletes all refresh tokens for a specific user (logout from all devices)
-   * @param {string} userId - User ID
-   * @returns {Promise<number>} Number of tokens deleted
+   * Deletes all refresh tokens for a specific user (logout from all devices).
+   * @param {string} userId - User ID.
+   * @returns {Promise<number>} The number of tokens that were deleted.
    */
   async deleteAllRefreshTokensForUser(userId) {
     try {
@@ -372,11 +359,10 @@ class AuthRepository {
       const validatedUserId = validateUUID(userId);
 
       const sql = `
-      DELETE FROM refresh_tokens 
-      WHERE user_id = $1;
-    `;
+        DELETE FROM refresh_tokens
+        WHERE user_id = $1;
+      `;
       const params = [validatedUserId];
-
       const result = await query(sql, params);
 
       return result.rowCount;
@@ -386,11 +372,9 @@ class AuthRepository {
         dbError.originalError = error;
         throw dbError;
       }
-
       if (error.message === 'VALIDATION_ERROR') {
         throw error;
       }
-
       console.error('Unexpected error in AuthRepository.deleteAllRefreshTokensForUser:', error);
       throw error;
     }

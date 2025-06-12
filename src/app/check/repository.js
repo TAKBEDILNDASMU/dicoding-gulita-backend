@@ -18,7 +18,7 @@ class CheckRepository {
           phys_hlth,
           education,
           gen_hlth,
-          ment_hlth,
+          high_bp,
           diabetes_result,
           created_at
         FROM check_results
@@ -54,10 +54,10 @@ class CheckRepository {
     try {
       const sql = `
         INSERT INTO check_results (
-          user_id, bmi, age, income, phys_hlth, education, gen_hlth, ment_hlth, diabetes_result
+          user_id, bmi, age, income, phys_hlth, education, gen_hlth, high_bp, diabetes_result
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id, user_id, bmi, age, income, phys_hlth, education, gen_hlth, ment_hlth, diabetes_result, created_at;
+        RETURNING id, user_id, bmi, age, income, phys_hlth, education, gen_hlth, high_bp, diabetes_result, created_at;
       `;
 
       const params = [
@@ -68,7 +68,7 @@ class CheckRepository {
         data.phys_hlth,
         data.education,
         data.gen_hlth,
-        data.ment_hlth,
+        data.high_bp,
         data.diabetes_result,
       ];
 

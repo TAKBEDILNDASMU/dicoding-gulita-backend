@@ -1,6 +1,6 @@
 'use strict';
 import { authHandler } from './diContainer.js';
-import { registerPayloadSchema, loginPayloadSchema, validationFailAction, logoutPayloadSchema } from './validation.js';
+import { registerPayloadSchema, loginPayloadSchema, validationFailAction, logoutPayloadSchema, refreshTokenPayloadSchema } from './validation.js';
 
 /**
  * User registration route
@@ -85,9 +85,26 @@ const logoutRoute = {
   handler: authHandler.logout,
 };
 
+const refreshTokenRoute = {
+  method: 'POST',
+  path: '/api/v1/users/token/refresh',
+  options: {
+    description: 'Refresh an access token using a refresh token',
+    notes: 'Provides a new JWT access token if a valid refresh token is supplied',
+    tags: ['api', 'auth', 'users'],
+    validate: {
+      // You'll need a schema for this payload
+      payload: refreshTokenPayloadSchema,
+      failAction: validationFailAction,
+    },
+    auth: false, // This route itself doesn't require an access token
+  },
+  handler: authHandler.refreshToken, // You'll need to create this new handler
+};
+
 /**
  * Array of all authentication routes
  * Export all routes for registration with Hapi server
  */
-const routes = [registerRoute, loginRoute, logoutRoute];
+const routes = [registerRoute, loginRoute, logoutRoute, refreshTokenRoute];
 export default routes;
