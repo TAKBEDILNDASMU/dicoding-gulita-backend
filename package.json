@@ -28,7 +28,6 @@
     },
     "devDependencies": {
         "@hapi/code": "^9.0.3",
-        "@hapi/lab": "^26.0.0",
-        "node-pg-migrate": "^8.0.1"
+        "@hapi/lab": "^26.0.0"
     }
 }
